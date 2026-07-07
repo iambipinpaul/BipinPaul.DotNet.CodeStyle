@@ -21,9 +21,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>csharp;editorconfig;dotnet-format;stylecop;resharper;cleanupcode;formatting;code-style;dotnet-tool</PackageTags>
-    <RepositoryUrl>https://github.com/BipinPaul/BipinPaul.DotNet.CodeStyle</RepositoryUrl>
+    <RepositoryUrl>https://github.com/iambipinpaul/BipinPaul.DotNet.CodeStyle</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/BipinPaul/BipinPaul.DotNet.CodeStyle</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/iambipinpaul/BipinPaul.DotNet.CodeStyle</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
