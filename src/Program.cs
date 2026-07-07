@@ -22,6 +22,7 @@
 
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -114,7 +115,7 @@ int Init(string repoRoot, string? sln, bool overwrite)
 
     Console.WriteLine();
     Console.WriteLine("Done. Next steps:");
-    Console.WriteLine("  1. dotnet tool restore                         # install the ReSharper CLI");
+    Console.WriteLine("  1. dotnet tool restore                         # install the ReSharper CLI (auto-detects arch)");
     Console.WriteLine("  2. csharp-style run --all                      # normalize the whole repo once");
     Console.WriteLine("  3. then csharp-style run                       # format changed files going forward");
     Console.WriteLine();
@@ -171,9 +172,9 @@ int Run(string repoRoot, string? sln, string? @ref, bool whole, bool list, bool 
     if (!skipReorder)
     {
         Console.WriteLine("[1/2] Reordering members (cleanupcode ReorderOnly)...");
-        if (RunInherit("dotnet", ["tool", "restore"]) is var r && r != 0)
+        if (EnsureReSharperTool() is var r && r != 0)
         {
-            Console.Error.WriteLine($"dotnet tool restore failed ({r}). Did you run `csharp-style init`?");
+            Console.Error.WriteLine($"ReSharper tool install failed ({r}). Did you run `csharp-style init`?");
             return r;
         }
 
@@ -506,6 +507,19 @@ int RunInherit(string file, string[] arguments)
     using Process p = Process.Start(psi)!;
     p.WaitForExit();
     return p.ExitCode;
+}
+
+// Installs the ReSharper local tool with the correct --arch flag so it works
+// on Windows ARM64 (where dotnet tool restore alone may pick the wrong RID).
+// Falls back to `dotnet tool restore` if the explicit install fails (e.g. the
+// tool is already installed — "install" returns non-zero for that case).
+int EnsureReSharperTool()
+{
+    string arch = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant();
+    int r = RunInherit("dotnet", ["tool", "install", "JetBrains.ReSharper.GlobalTools",
+                                  "--local", "--arch", arch]);
+    if (r == 0) return 0;
+    return RunInherit("dotnet", ["tool", "restore"]);
 }
 
 // Runs `dotnet format`, suppressing its noisy per-issue "Unable to fix X" lines
