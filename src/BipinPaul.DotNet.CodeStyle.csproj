@@ -6,14 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RollForward>Major</RollForward>
-    <RootNamespace>iAmBipinPaul.DotNet.CodeStyle</RootNamespace>
+    <RootNamespace>BipinPaul.DotNet.CodeStyle</RootNamespace>
 
     <!-- Pack as a .NET global/local tool: `dotnet tool install ... csharp-style` -->
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>csharp-style</ToolCommandName>
-    <PackageId>iAmBipinPaul.DotNet.CodeStyle</PackageId>
+    <PackageId>BipinPaul.DotNet.CodeStyle</PackageId>
     <Version>1.0.7</Version>
-    <Title>iAmBipinPaul DotNet CodeStyle</Title>
+    <Title>BipinPaul DotNet CodeStyle</Title>
     <Description>Two-pass C# formatter: ReSharper cleanupcode member reorder + dotnet format --severity info, with .editorconfig / StyleCop / ReSharper scaffolding (`init`). Optimized for LLM-agent-friendly, explicit, deterministic code.</Description>
     <Authors>Bipin Paul</Authors>
     <Company>Bipin Paul</Company>
@@ -21,9 +21,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>csharp;editorconfig;dotnet-format;stylecop;resharper;cleanupcode;formatting;code-style;dotnet-tool</PackageTags>
-    <RepositoryUrl>https://github.com/iAmBipinPaul/iAmBipinPaul.DotNet.CodeStyle</RepositoryUrl>
+    <RepositoryUrl>https://github.com/BipinPaul/BipinPaul.DotNet.CodeStyle</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/iAmBipinPaul/iAmBipinPaul.DotNet.CodeStyle</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/BipinPaul/BipinPaul.DotNet.CodeStyle</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>

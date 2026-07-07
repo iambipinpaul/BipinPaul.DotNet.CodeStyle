@@ -1,6 +1,6 @@
-# iAmBipinPaul.DotNet.CodeStyle
+# BipinPaul.DotNet.CodeStyle
 
-[![NuGet](https://img.shields.io/nuget/v/iAmBipinPaul.DotNet.CodeStyle.svg)](https://www.nuget.org/packages/iAmBipinPaul.DotNet.CodeStyle/)
+[![NuGet](https://img.shields.io/nuget/v/BipinPaul.DotNet.CodeStyle.svg)](https://www.nuget.org/packages/BipinPaul.DotNet.CodeStyle/)
 
 A reusable .NET global tool (`csharp-style`) that makes any C# repo's formatting
 **explicit, deterministic, and LLM-agent-friendly** — and keeps it that way with
@@ -21,15 +21,15 @@ final word on whitespace.
 
 ## Install
 
-Available on [NuGet](https://www.nuget.org/packages/iAmBipinPaul.DotNet.CodeStyle/):
+Available on [NuGet](https://www.nuget.org/packages/BipinPaul.DotNet.CodeStyle/):
 
 ```bash
 # global tool
-dotnet tool install --global iAmBipinPaul.DotNet.CodeStyle
+dotnet tool install --global BipinPaul.DotNet.CodeStyle
 
 # or as a repo-local tool
 dotnet new tool-manifest        # if you don't have one
-dotnet tool install iAmBipinPaul.DotNet.CodeStyle
+dotnet tool install BipinPaul.DotNet.CodeStyle
 ```
 
 ### Build / pack / publish locally (Nuke)
@@ -39,7 +39,7 @@ dotnet tool install iAmBipinPaul.DotNet.CodeStyle
 ./build.ps1 Push --NuGetPAT <key>   # also pushes to nuget.org
 
 # install the freshly packed build to test it
-dotnet tool install --global --add-source ./artifacts/Packages iAmBipinPaul.DotNet.CodeStyle
+dotnet tool install --global --add-source ./artifacts/Packages BipinPaul.DotNet.CodeStyle
 ```
 
 ## Use

@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/iAmBipinPaul.DotNet.CodeStyle.csproj" />
-  </Folder>
-  <Project Path="build/_build.csproj">
-    <Build Project="false" />
-  </Project>
-</Solution>

@@ -19,7 +19,7 @@ class Build : NukeBuild
     AbsolutePath PackageOutputDirectory => ArtifactsDirectory / "Packages";
 
     AbsolutePath PackageProjectPath =>
-        SourceDirectory / "iAmBipinPaul.DotNet.CodeStyle.csproj";
+        SourceDirectory / "BipinPaul.DotNet.CodeStyle.csproj";
 
     [Parameter("NuGet API Key for publishing the tool")] readonly string NuGetPAT;
     [Parameter("Package version (default: 1.0.2)")] readonly string PackageVersion = "1.0.6";
