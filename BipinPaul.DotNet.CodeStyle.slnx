@@ -2,4 +2,5 @@
   <Folder Name="/src/">
     <Project Path="src/BipinPaul.DotNet.CodeStyle.csproj" />
   </Folder>
+  <Project Path="build/_build.csproj" />
 </Solution>
