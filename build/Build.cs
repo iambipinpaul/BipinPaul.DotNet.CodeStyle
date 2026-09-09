@@ -22,7 +22,7 @@ class Build : FalloutBuild
         SourceDirectory / "BipinPaul.DotNet.CodeStyle.csproj";
 
     [Parameter("NuGet API Key for publishing the tool")] readonly string NuGetPAT;
-    [Parameter("Package version (default: 1.0.9)")] readonly string PackageVersion = "1.0.9";
+    [Parameter("Package version (default: 1.0.10)")] readonly string PackageVersion = "1.0.10";
 
     #region NuGet
 
