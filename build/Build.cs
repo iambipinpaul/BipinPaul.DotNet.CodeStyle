@@ -1,11 +1,11 @@
 using System.Linq;
-using Nuke.Common;
-using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
-using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Utilities.Collections;
+using Fallout.Common;
+using Fallout.Common.IO;
+using Fallout.Solutions;
+using Fallout.Common.Tools.DotNet;
+using Fallout.Common.Utilities.Collections;
 
-class Build : NukeBuild
+class Build : FalloutBuild
 {
     public static int Main() => Execute<Build>(x => x.Push);
 
@@ -22,7 +22,7 @@ class Build : NukeBuild
         SourceDirectory / "BipinPaul.DotNet.CodeStyle.csproj";
 
     [Parameter("NuGet API Key for publishing the tool")] readonly string NuGetPAT;
-    [Parameter("Package version (default: 1.0.9)")] readonly string PackageVersion = "1.0.9";
+    [Parameter("Package version (default: 1.0.10)")] readonly string PackageVersion = "1.0.10";
 
     #region NuGet
 

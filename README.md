@@ -32,7 +32,7 @@ dotnet new tool-manifest        # if you don't have one
 dotnet tool install BipinPaul.DotNet.CodeStyle
 ```
 
-### Build / pack / publish locally (Nuke)
+### Build / pack / publish locally (Fallout)
 
 ```bash
 ./build.ps1 Pack     # Clean -> Restore -> Compile -> Pack  (artifacts/Packages)
@@ -93,7 +93,7 @@ no flag — it's thorough but loads the whole solution, so it takes a while.
 - Derives the in-solution **project directories** from the solution file, so
   changed-file scoping works without hardcoded folder names.
 - Reads excludes from `.csharp-style.json` so per-repo quirks (e.g. an isolated
-  Nuke `build/` project) stay out of the pipeline.
+  Fallout `build/` project) stay out of the pipeline.
 
 ## Known limitation
 `SA1204` (static-before-instance *within* an access group) is shipped as a
