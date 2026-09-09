@@ -459,3 +459,8 @@ $RECYCLE.BIN/
 ##
 TestTemplate_*/
 TestKrafterApp/
+
+##
+## Fallout build cache
+##
+.fallout/temp/
