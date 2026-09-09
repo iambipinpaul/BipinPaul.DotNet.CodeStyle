@@ -12,7 +12,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>csharp-style</ToolCommandName>
     <PackageId>BipinPaul.DotNet.CodeStyle</PackageId>
-    <Version>1.0.7</Version>
+    <Version>1.0.9</Version>
     <Title>BipinPaul DotNet CodeStyle</Title>
     <Description>Two-pass C# formatter: ReSharper cleanupcode member reorder + dotnet format --severity info, with .editorconfig / StyleCop / ReSharper scaffolding (`init`). Optimized for LLM-agent-friendly, explicit, deterministic code.</Description>
     <Authors>Bipin Paul</Authors>
@@ -32,7 +32,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.203" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
