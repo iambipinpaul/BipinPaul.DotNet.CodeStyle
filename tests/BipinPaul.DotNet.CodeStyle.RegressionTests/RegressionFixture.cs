@@ -29,24 +29,23 @@ internal sealed class HarnessEnvironment : IDisposable
         {
             File.SetUnixFileMode(fakeHost, File.GetUnixFileMode(apphost));
         }
-        else
+        // .NET searches the parent executable's directory before PATH on Unix too.
+        // Keep the tool apphost beside the fake host on every supported platform.
+        string toolApphost = Path.Combine(Path.GetDirectoryName(Tool)!,
+            Path.GetFileNameWithoutExtension(Tool) + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        Require(File.Exists(toolApphost), "Tool apphost is missing beside --tool. Build a framework-dependent executable first.");
+        foreach (string file in Directory.EnumerateFiles(Path.GetDirectoryName(Tool)!))
         {
-            // Windows searches the parent executable's directory before PATH.
-            // Launch the tool apphost beside the fake host, rather than making
-            // the real dotnet.exe its parent and accidentally running real tools.
-            string toolApphost = Path.ChangeExtension(Tool, ".exe");
-            Require(File.Exists(toolApphost), "Tool apphost is missing beside --tool. Build a framework-dependent executable first.");
-            foreach (string file in Directory.EnumerateFiles(Path.GetDirectoryName(Tool)!))
-            {
-                File.Copy(file, Path.Combine(FakeHostDirectory, Path.GetFileName(file)), overwrite: true);
-            }
-            ToolApphost = Path.Combine(FakeHostDirectory, Path.GetFileName(toolApphost));
+            File.Copy(file, Path.Combine(FakeHostDirectory, Path.GetFileName(file)), overwrite: true);
         }
+        ToolApphost = Path.Combine(FakeHostDirectory, Path.GetFileName(toolApphost));
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(ToolApphost, File.GetUnixFileMode(toolApphost));
     }
 
     internal string Dotnet { get; }
     internal string Tool { get; }
-    internal string? ToolApphost { get; }
+    internal string ToolApphost { get; }
     internal string Root { get; }
     internal string FakeHostDirectory { get; }
 
@@ -176,9 +175,7 @@ internal sealed class RegressionFixture : IDisposable
         string scenarioPath = Path.Combine(_control, "scenario.json");
         await File.WriteAllTextAsync(scenarioPath, JsonSerializer.Serialize(scenario));
         File.Delete(_log);
-        ProcessStartInfo start = new(_environment.ToolApphost ?? _environment.Dotnet) { WorkingDirectory = Root };
-        if (_environment.ToolApphost is null)
-            start.ArgumentList.Add(_environment.Tool);
+        ProcessStartInfo start = new(_environment.ToolApphost) { WorkingDirectory = Root };
         foreach (string argument in arguments)
         {
             start.ArgumentList.Add(argument);

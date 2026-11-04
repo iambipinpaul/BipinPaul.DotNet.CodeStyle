@@ -16,9 +16,9 @@ For an already built harness, avoid rebuilding with:
 
 The harness copies its apphost and runtime files into a temporary PATH directory,
 renames that apphost to `dotnet`, and logs the tool's child commands as JSON arrays.
-On Unix the tool is launched through the absolute real host. On Windows its
-apphost is copied beside the fake host and launched there, because Windows
-searches the parent executable directory before PATH. Child formatting/tool
+The tool apphost is copied beside the fake host and launched there on every
+platform, because .NET searches the parent executable directory before PATH.
+Executable permissions are preserved on Unix. Child formatting/tool
 installation commands are simulated; the tested tool never invokes real formatters
 or installs packages. Fixtures and their temporary Git commits stay under a unique
 directory in the system temporary folder and are removed when the harness exits.
