@@ -14,7 +14,7 @@
     <PackageId>BipinPaul.DotNet.CodeStyle</PackageId>
     <Version>1.0.10</Version>
     <Title>BipinPaul DotNet CodeStyle</Title>
-    <Description>Two-pass C# formatter: ReSharper cleanupcode member reorder + dotnet format --severity info, with .editorconfig / StyleCop / ReSharper scaffolding (`init`). Optimized for LLM-agent-friendly, explicit, deterministic code.</Description>
+    <Description>C# cleanup pipeline: analyzer fixes, ReSharper member ordering, and final whitespace formatting, with .editorconfig / StyleCop / ReSharper scaffolding (`init`). Optimized for readable, deterministic code.</Description>
     <Authors>Bipin Paul</Authors>
     <Company>Bipin Paul</Company>
     <Copyright>Copyright © 2026 Bipin Paul</Copyright>
