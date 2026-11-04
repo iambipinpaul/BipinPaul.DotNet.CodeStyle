@@ -3,7 +3,12 @@
 Style, naming, and member order are enforced by `.editorconfig` + StyleCop, so
 the build will flag them — no need to memorize them here.
 
-**When all your edits are done**, run once to auto-format the files you changed:
+Follow repository instructions, including any approval requirements for formatting,
+builds, and tests. Reuse existing authorization; ask only for approval that is
+still missing.
+
+**When all your edits are done**, run once to auto-format the files you changed,
+subject to those instructions and authorization:
 
 ```
 csharp-style run

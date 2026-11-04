@@ -49,6 +49,12 @@ internal static class RegressionCases
     {
         List<(string Name, Func<HarnessEnvironment, Task> Run)> cases =
         [
+            ("unknown arguments fail before any repository changes", UnknownArgumentsAsync),
+            ("missing option values fail before any repository changes", MissingValuesAsync),
+            ("options for another command fail before any repository changes", UnsupportedOptionsAsync),
+            ("help starts no child commands and leaves files unchanged", HelpArgumentsAsync),
+            ("format alias and short options retain the cleanup pipeline", FormatAliasAsync),
+            ("base reference options include committed changes", BaseReferenceAsync),
             ("pinned install uses the declared version and manifest", PinnedInstallAsync),
             ("restore fallback retains the same pinned manifest", RestoreFallbackAsync),
             ("missing manifest fails before source changes", MissingManifestAsync),
@@ -92,6 +98,120 @@ internal static class RegressionCases
         }
         Console.WriteLine($"{cases.Count - failures} passed; {failures} failed; {cases.Count} total.");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static async Task UnknownArgumentsAsync(HarnessEnvironment environment)
+    {
+        await RejectArgumentsAsync(environment,
+        [
+            ["--version"],
+            ["run", "--all", "--al"],
+            ["format", "--typo"],
+            ["init", "--typo"],
+            ["help", "--typo"],
+            ["no-such-command"],
+            ["run", "unexpected"],
+            ["init", "unexpected"],
+            ["--all", "run"],
+            ["--help", "--typo"],
+            ["--typo", "--help"]
+        ]);
+    }
+
+    private static async Task MissingValuesAsync(HarnessEnvironment environment)
+    {
+        List<string[]> arguments = [];
+        foreach (string option in new[] { "--base", "-b", "--solution", "-s", "--exclude", "-e" })
+        {
+            arguments.Add(["run", option]);
+            arguments.Add(["run", option, ""]);
+            arguments.Add(["run", option, " "]);
+            arguments.Add(["run", option, "--all"]);
+        }
+        arguments.Add(["init", "--solution"]);
+        arguments.Add(["init", "--solution", "--help"]);
+        await RejectArgumentsAsync(environment, arguments);
+    }
+
+    private static async Task UnsupportedOptionsAsync(HarnessEnvironment environment)
+    {
+        await RejectArgumentsAsync(environment,
+        [
+            ["init", "--all"],
+            ["init", "-a"],
+            ["init", "--base", "main"],
+            ["init", "--exclude", "src/**"],
+            ["init", "--list"],
+            ["init", "--no-reorder"],
+            ["run", "--force"],
+            ["format", "-f"],
+            ["help", "--solution", "Sample.slnx"]
+        ]);
+    }
+
+    private static async Task RejectArgumentsAsync(HarnessEnvironment environment, IEnumerable<string[]> argumentSets)
+    {
+        foreach (string[] arguments in argumentSets)
+        {
+            using RegressionFixture fixture = environment.CreateFixture();
+            await fixture.CommitBaselineAsync();
+            fixture.Write(RegressionFixture.SourceRelative, "internal sealed class Sample { int Changed; }\n");
+            Dictionary<string, byte[]> before = fixture.Snapshot();
+            ProcessResult result = await fixture.RunAsync(new(), arguments);
+            string invocation = JsonSerializer.Serialize(arguments);
+            Require(result.ExitCode == 2, $"Invalid invocation {invocation} should exit 2, got {result.ExitCode}: {result.Output}");
+            Require(result.StandardError.Contains("--help", StringComparison.Ordinal),
+                "Invalid invocation did not explain how to get usage help: " + invocation);
+            Require(fixture.Calls.Count == 0, "Invalid invocation started child dotnet commands: " + invocation);
+            SameSnapshot(before, fixture.Snapshot());
+        }
+    }
+
+    private static async Task HelpArgumentsAsync(HarnessEnvironment environment)
+    {
+        string[][] argumentSets = [["--help"], ["-h"], ["help"], ["run", "--help"], ["init", "-h"], ["format", "--help"]];
+        foreach (string[] arguments in argumentSets)
+        {
+            using RegressionFixture fixture = environment.CreateFixture(styleConfiguration: false);
+            Dictionary<string, byte[]> before = fixture.Snapshot();
+            ProcessResult result = await fixture.RunAsync(new(), arguments);
+            Success(result);
+            Require(result.StandardOutput.Contains("USAGE", StringComparison.Ordinal), "Help did not print usage.");
+            Require(fixture.Calls.Count == 0, "Help started child dotnet commands.");
+            SameSnapshot(before, fixture.Snapshot());
+        }
+    }
+
+    private static async Task FormatAliasAsync(HarnessEnvironment environment)
+    {
+        using RegressionFixture fixture = environment.CreateFixture();
+        ProcessResult result = await fixture.RunAsync(new(), "format", "-a", "-s", "Sample.slnx", "-e", RegressionFixture.ExcludedRelative);
+        Success(result);
+        Workflow(fixture, "analyzers", "reorder", "whitespace");
+        foreach (string[] call in FormattingCalls(fixture))
+        {
+            Require(call.Contains("Sample.slnx"), "Format alias lost its explicit solution.");
+            Equal([RegressionFixture.ExcludedRelative], OptionValues(call, "--exclude"), "A short option lost its exclusion.");
+        }
+    }
+
+    private static async Task BaseReferenceAsync(HarnessEnvironment environment)
+    {
+        foreach (string option in new[] { "--base", "-b" })
+        {
+            using RegressionFixture fixture = environment.CreateFixture();
+            await fixture.CommitBaselineAsync();
+            fixture.Write(RegressionFixture.SourceRelative, "internal sealed class Sample { int CommittedChange; }\n");
+            await fixture.CommitBaselineAsync();
+            ProcessResult result = await fixture.RunAsync(new(), "run", option, "HEAD~1");
+            Success(result);
+            Workflow(fixture, "analyzers", "reorder", "whitespace");
+            foreach (string[] call in FormattingCalls(fixture))
+            {
+                Equal([RegressionFixture.SourceRelative], OptionValues(call, "--include"),
+                    "The base reference option omitted a committed change: " + option);
+            }
+        }
     }
 
     private static async Task PinnedInstallAsync(HarnessEnvironment environment)

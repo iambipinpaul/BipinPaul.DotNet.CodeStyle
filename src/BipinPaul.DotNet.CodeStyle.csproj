@@ -12,7 +12,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>csharp-style</ToolCommandName>
     <PackageId>BipinPaul.DotNet.CodeStyle</PackageId>
-    <Version>1.0.11</Version>
+    <Version>1.0.12</Version>
     <Title>BipinPaul DotNet CodeStyle</Title>
     <Description>C# cleanup pipeline: analyzer fixes, ReSharper member ordering, and final whitespace formatting, with .editorconfig / StyleCop / ReSharper scaffolding (`init`). Optimized for readable, deterministic code.</Description>
     <Authors>Bipin Paul</Authors>

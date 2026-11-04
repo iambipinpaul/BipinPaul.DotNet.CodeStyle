@@ -29,31 +29,49 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-string command = args.Length > 0 && !args[0].StartsWith('-') ? args[0] : "run";
+bool hasExplicitCommand = args.Length > 0 && !args[0].StartsWith('-');
+string command = hasExplicitCommand ? args[0] : "run";
+if (command is not ("init" or "run" or "format" or "help")) return Unknown(command);
+bool isRunCommand = command is "run" or "format";
 
-// --- Parse flags -------------------------------------------------------------
+// --- Parse flags before any repository inspection or mutation ----------------
 string? baseRef = null;
 string? explicitSolution = null;
 bool listOnly = false;
 bool noReorder = false;
 bool all = false;
 bool force = false;
+bool showHelp = false;
 List<string> cliExcludes = [];
 
-for (int i = 0; i < args.Length; i++)
+for (int i = hasExplicitCommand ? 1 : 0; i < args.Length; i++)
 {
     switch (args[i])
     {
-        case "--base" or "-b" when i + 1 < args.Length: baseRef = args[++i]; break;
-        case "--solution" or "-s" when i + 1 < args.Length: explicitSolution = args[++i]; break;
-        case "--exclude" or "-e" when i + 1 < args.Length: cliExcludes.Add(args[++i]); break;
-        case "--list" or "-l": listOnly = true; break;
-        case "--no-reorder": noReorder = true; break;
-        case "--all" or "-a": all = true; break;
-        case "--force" or "-f": force = true; break;
-        case "--help" or "-h": PrintHelp(); return 0;
+        case "--base" or "-b" when isRunCommand:
+        case "--solution" or "-s" when command != "help":
+        case "--exclude" or "-e" when isRunCommand:
+            string option = args[i];
+            if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]) || args[i + 1].StartsWith('-'))
+                return UsageError($"Option '{option}' requires a value.");
+            string value = args[++i];
+            switch (option)
+            {
+                case "--base" or "-b": baseRef = value; break;
+                case "--solution" or "-s": explicitSolution = value; break;
+                case "--exclude" or "-e": cliExcludes.Add(value); break;
+            }
+            break;
+        case "--list" or "-l" when isRunCommand: listOnly = true; break;
+        case "--no-reorder" when isRunCommand: noReorder = true; break;
+        case "--all" or "-a" when isRunCommand: all = true; break;
+        case "--force" or "-f" when command == "init": force = true; break;
+        case "--help" or "-h": showHelp = true; break;
+        default: return UsageError($"Unknown option or argument '{args[i]}' for '{command}'.");
     }
 }
+
+if (showHelp) return Pass(PrintHelp);
 
 string repo = Directory.GetCurrentDirectory();
 
@@ -678,6 +696,7 @@ JsonSerializerOptions JsonOpts() => new() { WriteIndented = true };
 
 int Pass(Action a) { a(); return 0; }
 int Unknown(string c) { Console.Error.WriteLine($"unknown command '{c}'. Try: init | run | --help"); return 2; }
+int UsageError(string message) { Console.Error.WriteLine($"{message} Try --help."); return 2; }
 
 void PrintHelp() => Console.WriteLine(
 """
@@ -689,6 +708,8 @@ USAGE
                     [--exclude <glob>]... [--solution <f>]
 
   (run is the default command, so `csharp-style --all` works too.)
+  Unknown arguments, missing values, and options for another command exit 2
+  before making changes. Use --help or -h to display this help.
 
 WHAT init CREATES
   .editorconfig, .gitattributes, AGENTS.md (C# conventions for AI agents),
