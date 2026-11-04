@@ -1,8 +1,7 @@
-// csharp-style — a reusable, two-pass C# formatter + config scaffolder.
+// csharp-style — a reusable C# cleanup pipeline + config scaffolder.
 //
-//   Pass 1: ReSharper `cleanupcode` (free CLI) with a ReorderOnly profile,
-//           reordering type members to match StyleCop SA1201/1202/1203.
-//   Pass 2: `dotnet format --severity info`, honoring .editorconfig.
+//   Apply analyzer fixes, reorder the resulting members with ReSharper,
+//   then format whitespace without introducing more members.
 //
 // Commands:
 //   csharp-style init                 scaffold .editorconfig, StyleCop props,
@@ -20,6 +19,7 @@
 // The runner auto-detects the solution (*.slnx preferred, else *.sln) and the
 // in-solution project directories, so it works in any repo without edits.
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -27,8 +27,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
-string command = args.FirstOrDefault(a => !a.StartsWith('-')) ?? "run";
+string command = args.Length > 0 && !args[0].StartsWith('-') ? args[0] : "run";
 
 // --- Parse flags -------------------------------------------------------------
 string? baseRef = null;
@@ -87,9 +88,9 @@ int Init(string repoRoot, string? sln, bool overwrite)
     string settingsFile = solution + ".DotSettings";
     Console.WriteLine($"Scaffolding style config for solution: {solution}");
 
-    // .editorconfig — merged: our block goes last and wins (editorconfig is
-    // last-key-wins), so existing custom rules survive but our standard prevails.
-    MergeManaged(Path.Combine(repoRoot, ".editorconfig"), Template("editorconfig.template"), splitAtFirstSection: true, overwrite);
+    // Existing unmanaged preferences belong to the repository. Do not append
+    // another complete baseline that silently overrides them.
+    MergeEditorConfig(Path.Combine(repoRoot, ".editorconfig"), overwrite);
     // .gitattributes — merged the same way (gitattributes is last-match-wins).
     MergeManaged(Path.Combine(repoRoot, ".gitattributes"), Template("gitattributes.template"), splitAtFirstSection: false, overwrite);
     // AGENTS.md — C# conventions for AI agents. Merged like the others, but with
@@ -167,63 +168,82 @@ int Run(string repoRoot, string? sln, string? @ref, bool whole, bool list, bool 
     if (list)
         return 0;
 
-    // --- Pass 1: reorder members (cleanupcode) -------------------------------
-    int reorderExit = 0;
+    // Validate prerequisites before any code fix can change source files.
     if (!skipReorder)
     {
-        Console.WriteLine("[1/2] Reordering members (cleanupcode ReorderOnly)...");
-        if (EnsureReSharperTool() is var r && r != 0)
+        if (!File.Exists(Path.Combine(repoRoot, settingsFile)))
         {
-            Console.Error.WriteLine($"ReSharper tool install failed ({r}). Did you run `csharp-style init`?");
-            return r;
+            Console.Error.WriteLine($"Missing {settingsFile}. Run `csharp-style init` and review the generated layout first.");
+            return 1;
         }
-
-        List<string> a = ["jb", "cleanupcode", solution, "--profile=ReorderOnly",
-                          $"--settings={settingsFile}", "--no-build"];
-        if (whole)
+        int toolExit = EnsureReSharperTool(repoRoot);
+        if (toolExit != 0)
         {
-            if (excludes.Count > 0) a.Add($"--exclude={string.Join(';', excludes)}");
+            Console.Error.WriteLine($"ReSharper setup failed ({toolExit}); source files have not been changed.");
+            return toolExit;
         }
-        else
-        {
-            a.Add($"--include={string.Join(';', files)}");
-        }
-
-        reorderExit = RunInherit("dotnet", [.. a]);
-        if (reorderExit != 0)
-            Console.WriteLine($"cleanupcode exited {reorderExit}; continuing to formatting.");
     }
 
-    // --- Pass 2: dotnet format ----------------------------------------------
-    Console.WriteLine("[2/2] Running dotnet format --severity info...");
+    // Code fixes may introduce members. They must run before final ordering.
+    Console.WriteLine("[1/3] Applying dotnet format code fixes (--severity info)...");
     List<string> fa = ["format", solution, "--severity", "info"];
-    if (whole)
-    {
-        foreach (string e in excludes) { fa.Add("--exclude"); fa.Add(e); }
-    }
-    else
-    {
-        fa.Add("--include");
-        fa.AddRange(files);
-    }
+    AddFormatScope(fa);
 
     int formatExit = RunDotnetFormat([.. fa], out string manualSummary);
     if (formatExit != 0)
     {
-        Console.WriteLine($"dotnet format exited {formatExit}.");
+        Console.Error.WriteLine($"Code fix pass failed ({formatExit}); review its output and any partial changes.");
+        return formatExit;
     }
-    else
+
+    if (!skipReorder)
     {
-        Console.WriteLine(reorderExit == 0 ? "Done." : $"Formatted, but cleanupcode exited {reorderExit}.");
-        if (manualSummary.Length > 0)
+        Console.WriteLine("[2/3] Reordering members (cleanupcode ReorderOnly)...");
+        List<string> reorderArguments = ["tool", "run", "jb", "--", "cleanupcode", solution,
+            "--profile=ReorderOnly", $"--settings={settingsFile}", "--no-build", "--no-updates"];
+        if (whole)
         {
-            // Framed explicitly so humans AND LLM agents read it as informational,
-            // not a failure: these rules simply have no automatic code fix.
-            Console.WriteLine($"Note: formatting SUCCEEDED. These rules have no auto-fix and need a manual edit (expected, not an error): {manualSummary}.");
+            if (excludes.Count > 0) reorderArguments.Add($"--exclude={string.Join(';', excludes)}");
+        }
+        else
+        {
+            reorderArguments.Add($"--include={string.Join(';', files)}");
+        }
+        int reorderExit = RunInherit("dotnet", [.. reorderArguments]);
+        if (reorderExit != 0)
+        {
+            Console.Error.WriteLine($"Member ordering failed ({reorderExit}).");
+            return reorderExit;
         }
     }
 
-    return formatExit != 0 ? formatExit : reorderExit;
+    Console.WriteLine("[3/3] Formatting whitespace...");
+    List<string> whitespaceArguments = ["format", "whitespace", solution, "--no-restore"];
+    AddFormatScope(whitespaceArguments);
+    int whitespaceExit = RunInherit("dotnet", [.. whitespaceArguments]);
+    if (whitespaceExit != 0)
+    {
+        Console.Error.WriteLine($"Whitespace formatting failed ({whitespaceExit}).");
+        return whitespaceExit;
+    }
+
+    Console.WriteLine("Done.");
+    if (manualSummary.Length > 0)
+        Console.WriteLine($"Manual review is still needed for diagnostics without automatic fixes: {manualSummary}.");
+    return 0;
+
+    void AddFormatScope(List<string> arguments)
+    {
+        if (whole)
+        {
+            foreach (string exclude in excludes) { arguments.Add("--exclude"); arguments.Add(exclude); }
+        }
+        else
+        {
+            arguments.Add("--include");
+            arguments.AddRange(files);
+        }
+    }
 }
 
 // ============================================================================
@@ -319,6 +339,18 @@ Regex GlobToRegex(string glob)
 // ============================================================================
 // Scaffolding helpers
 // ============================================================================
+void MergeEditorConfig(string path, bool overwrite)
+{
+    if (File.Exists(path) && !overwrite
+        && !File.ReadAllText(path).Contains("# >>> csharp-style")
+        && !File.ReadAllText(path).Contains("# <<< csharp-style"))
+    {
+        Console.WriteLine("  = .editorconfig (existing repository settings preserved; review before using init --force)");
+        return;
+    }
+    MergeManaged(path, Template("editorconfig.template"), splitAtFirstSection: true, overwrite);
+}
+
 // Merge a template into a line-based config (.editorconfig / .gitattributes) via
 // a delimited "managed block" kept at the END of the file. Both formats are
 // last-rule-wins, so our block overrides overlapping keys while leaving the
@@ -350,16 +382,29 @@ void MergeManaged(string path, string template, bool splitAtFirstSection, bool o
         return;
     }
 
-    string existing = File.ReadAllText(path).Replace("\r\n", "\n");
-    if (existing.Contains(begin) && existing.Contains(end))
+    string existing = File.ReadAllText(path);
+    string newline = existing.Contains("\r\n") ? "\r\n" : "\n";
+    block = block.Replace("\n", newline);
+    int beginCount = Regex.Matches(existing, Regex.Escape(begin)).Count;
+    int endCount = Regex.Matches(existing, Regex.Escape(end)).Count;
+    if (beginCount == 1 && endCount == 1 && existing.IndexOf(begin, StringComparison.Ordinal) < existing.IndexOf(end, StringComparison.Ordinal))
     {
-        existing = Regex.Replace(existing, Regex.Escape(begin) + ".*?" + Regex.Escape(end), _ => block, RegexOptions.Singleline);
-        File.WriteAllText(path, existing);
-        Console.WriteLine($"  ~ {name} (updated managed block)");
+        string updated = Regex.Replace(existing, Regex.Escape(begin) + ".*?" + Regex.Escape(end), _ => block, RegexOptions.Singleline);
+        if (updated == existing)
+            Console.WriteLine($"  = {name} (managed block already current)");
+        else
+        {
+            File.WriteAllText(path, updated);
+            Console.WriteLine($"  ~ {name} (updated managed block)");
+        }
+    }
+    else if (existing.Contains(commentPrefix + " >>> csharp-style") || existing.Contains(commentPrefix + " <<< csharp-style"))
+    {
+        throw new InvalidDataException($"{name} has incomplete or duplicate csharp-style managed markers; repair them before reinitializing.");
     }
     else
     {
-        File.WriteAllText(path, existing.TrimEnd('\n') + "\n\n" + block + "\n");
+        File.WriteAllText(path, existing.TrimEnd('\r', '\n') + newline + newline + block + newline);
         Console.WriteLine($"  ~ {name} (merged: appended managed block)");
     }
 }
@@ -371,23 +416,59 @@ void MergeDotSettings(string path, string template, bool overwrite)
     if (overwrite) { File.WriteAllText(path, template); Console.WriteLine($"  ~ {name} (overwritten)"); return; }
 
     string existing = File.ReadAllText(path);
-    if (existing.Contains("CSharpFileLayoutPatterns/Pattern/@EntryValue")
-        && existing.Contains("Profiles/=ReorderOnly"))
+    XDocument document = XDocument.Parse(existing, LoadOptions.PreserveWhitespace);
+    XDocument defaults = XDocument.Parse(template);
+    XDocument legacy = XDocument.Parse(Template("solution.DotSettings.legacy.template"));
+    XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+    if (document.Root?.Name != defaults.Root!.Name)
+        throw new InvalidDataException($"{name} is not a ReSharper resource dictionary; existing settings were preserved.");
+
+    bool changed = false;
+    foreach (XElement entry in defaults.Root.Elements())
     {
-        Console.WriteLine($"  = {name} (ReorderOnly + layout already present, skipped)");
-        return;
+        string key = entry.Attribute(x + "Key")!.Value;
+        List<XElement> matches = document.Root.Elements().Where(e => (string?)e.Attribute(x + "Key") == key).ToList();
+        if (matches.Count > 1)
+            throw new InvalidDataException($"{name} contains duplicate resource key '{key}'; existing settings were preserved.");
+        if (matches.Count == 0)
+        {
+            document.Root.Add(new XElement(entry));
+            changed = true;
+            continue;
+        }
+        XElement current = matches[0];
+        if (SameSettingsValue(current.Value, entry.Value)) continue;
+        XElement? old = legacy.Root!.Elements().FirstOrDefault(e => (string?)e.Attribute(x + "Key") == key);
+        if (old is not null && SameSettingsValue(current.Value, old.Value))
+        {
+            current.Value = entry.Value;
+            changed = true;
+        }
+        else
+        {
+            Console.WriteLine($"  ! {name}: custom value for '{key}' preserved; compare it with the current template.");
+        }
     }
-    // Inject our two keys before the closing tag.
-    Match keys = Regex.Match(template, "(?s)<s:String.*</s:String>");
-    if (keys.Success && existing.Contains("</wpf:ResourceDictionary>"))
+
+    if (changed)
     {
-        existing = existing.Replace("</wpf:ResourceDictionary>", "\t" + keys.Value + "\r\n</wpf:ResourceDictionary>");
-        File.WriteAllText(path, existing);
-        Console.WriteLine($"  ~ {name} (injected ReorderOnly profile + layout)");
+        string newline = existing.Contains("\r\n") ? "\r\n" : "\n";
+        // File.WriteAllText emits UTF-8; keep the declaration consistent with it.
+        if (document.Declaration is not null) document.Declaration.Encoding = "utf-8";
+        string declaration = document.Declaration is null ? "" : document.Declaration + newline;
+        string updated = declaration + document.ToString(SaveOptions.DisableFormatting).Replace("\r\n", "\n").Replace("\n", newline);
+        if (existing.EndsWith('\n')) updated += newline;
+        File.WriteAllText(path, updated);
+        Console.WriteLine($"  ~ {name} (added missing settings or upgraded the previous generated layout)");
     }
     else
+        Console.WriteLine($"  = {name} (existing settings preserved)");
+
+    bool SameSettingsValue(string left, string right)
     {
-        Console.WriteLine($"  ! {name} exists but could not be merged; add the template keys manually.");
+        if (left == right) return true;
+        try { return XNode.DeepEquals(XElement.Parse(left), XElement.Parse(right)); }
+        catch (System.Xml.XmlException) { return false; }
     }
 }
 
@@ -461,12 +542,8 @@ void MergeToolManifest(string path)
             Console.WriteLine("  = .config/dotnet-tools.json (ReSharper already present, skipped)");
             return;
         }
-        tools["jetbrains.resharper.globaltools"] = new JsonObject
-        {
-            ["version"] = "2026.1.3",
-            ["commands"] = new JsonArray("jb"),
-            ["rollForward"] = false,
-        };
+        JsonNode defaults = JsonNode.Parse(Template("dotnet-tools.json.template"))!;
+        tools["jetbrains.resharper.globaltools"] = defaults["tools"]!["jetbrains.resharper.globaltools"]!.DeepClone();
         root["version"] ??= 1;
         root["isRoot"] ??= true;
         root["tools"] = tools;
@@ -513,13 +590,35 @@ int RunInherit(string file, string[] arguments)
 // on Windows ARM64 (where dotnet tool restore alone may pick the wrong RID).
 // Falls back to `dotnet tool restore` if the explicit install fails (e.g. the
 // tool is already installed — "install" returns non-zero for that case).
-int EnsureReSharperTool()
+int EnsureReSharperTool(string repoRoot)
 {
+    string manifestPath = Path.Combine(repoRoot, ".config", "dotnet-tools.json");
+    if (!File.Exists(manifestPath))
+    {
+        Console.Error.WriteLine("Missing local tool manifest. Run `csharp-style init` and review the pinned ReSharper version first.");
+        return 1;
+    }
+    using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+    string? version = null;
+    if (manifest.RootElement.TryGetProperty("tools", out JsonElement tools))
+    {
+        foreach (JsonProperty tool in tools.EnumerateObject())
+        {
+            if (tool.Name.Equals("jetbrains.resharper.globaltools", StringComparison.OrdinalIgnoreCase)
+                && tool.Value.TryGetProperty("version", out JsonElement declaredVersion))
+                version = declaredVersion.GetString();
+        }
+    }
+    if (string.IsNullOrWhiteSpace(version))
+    {
+        Console.Error.WriteLine("The local manifest must pin jetbrains.resharper.globaltools before member ordering can run.");
+        return 1;
+    }
     string arch = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant();
     int r = RunInherit("dotnet", ["tool", "install", "JetBrains.ReSharper.GlobalTools",
-                                  "--local", "--arch", arch]);
+                                  "--local", "--tool-manifest", manifestPath, "--version", version, "--arch", arch]);
     if (r == 0) return 0;
-    return RunInherit("dotnet", ["tool", "restore"]);
+    return RunInherit("dotnet", ["tool", "restore", "--tool-manifest", manifestPath]);
 }
 
 // Runs `dotnet format`, suppressing its noisy per-issue "Unable to fix X" lines
@@ -528,20 +627,22 @@ int EnsureReSharperTool()
 // and unambiguous so an LLM agent doesn't mistake "Unable to fix" for a failure.
 int RunDotnetFormat(string[] arguments, out string manualSummary)
 {
-    Dictionary<string, int> unfixable = new(StringComparer.OrdinalIgnoreCase);
+    ConcurrentDictionary<string, int> unfixable = new(StringComparer.OrdinalIgnoreCase);
+    int fixerFailures = 0;
     ProcessStartInfo psi = new("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
     foreach (string a in arguments) psi.ArgumentList.Add(a);
 
     void Handle(string? line)
     {
         if (line is null) return;
+        if (line.Contains("Failed to apply code fix", StringComparison.OrdinalIgnoreCase))
+            Interlocked.Increment(ref fixerFailures);
         Match m = Regex.Match(line, @"Unable to fix (\S+?)\.");
         if (m.Success)
         {
-            unfixable[m.Groups[1].Value] = unfixable.GetValueOrDefault(m.Groups[1].Value) + 1;
+            unfixable.AddOrUpdate(m.Groups[1].Value, 1, (_, count) => count + 1);
             return; // swallow the raw line; summarized at the end
         }
-        if (line.Contains("Warnings were encountered while loading the workspace")) return;
         Console.WriteLine(line);
     }
 
@@ -557,7 +658,10 @@ int RunDotnetFormat(string[] arguments, out string manualSummary)
         : string.Join(", ", unfixable
             .OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .Select(kv => kv.Value > 1 ? $"{kv.Key} ({kv.Value})" : kv.Key));
-    return p.ExitCode;
+    if (p.ExitCode != 0) return p.ExitCode;
+    if (fixerFailures == 0) return 0;
+    Console.Error.WriteLine($"{fixerFailures} code-fixer failure(s) were logged despite dotnet format exiting 0.");
+    return 1;
 }
 
 string Template(string name)
@@ -577,7 +681,7 @@ int Unknown(string c) { Console.Error.WriteLine($"unknown command '{c}'. Try: in
 
 void PrintHelp() => Console.WriteLine(
 """
-csharp-style — two-pass C# formatter (member reorder + dotnet format) + scaffolder
+csharp-style — C# cleanup (code fixes, member ordering, whitespace) + scaffolder
 
 USAGE
   csharp-style init [--solution <f>] [--force]

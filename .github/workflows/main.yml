@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - master
+  pull_request:
+    branches:
+      - main
+      - master
 
 jobs:
   build-and-publish:
@@ -19,12 +23,21 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Build tool and run CLI regressions
+        run: |
+          dotnet build src/BipinPaul.DotNet.CodeStyle.csproj --configuration Release
+          tool_dll_path="$(dotnet msbuild src/BipinPaul.DotNet.CodeStyle.csproj -nologo -getProperty:TargetPath -property:Configuration=Release)"
+          dotnet run --project tests/BipinPaul.DotNet.CodeStyle.RegressionTests --configuration Release -- --dotnet "$(command -v dotnet)" --tool "$tool_dll_path"
+          dotnet build build/_build.csproj --configuration Release
+          dotnet pack src/BipinPaul.DotNet.CodeStyle.csproj --configuration Release --no-build --output artifacts/validation
       - name: NuGet login (OIDC -> temp API key)
+        if: github.event_name == 'push'
         id: nuget-login
         uses: NuGet/login@v1
         with:
           user: ${{ secrets.NUGET_USER }}
       - name: Build, pack and push (Fallout)
+        if: github.event_name == 'push'
         run: |
           dotnet run --project ./build/_build.csproj
         env:

@@ -1,0 +1,11 @@
+root = true
+
+[*.cs]
+generated_code = false
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.SA1201.severity = error
+dotnet_diagnostic.SA1202.severity = error
+dotnet_diagnostic.SA1203.severity = error
+
+# Exercise a structural analyzer fix before final member ordering.
+dotnet_diagnostic.SYSLIB1045.severity = suggestion

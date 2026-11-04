@@ -2,5 +2,8 @@
   <Folder Name="/src/">
     <Project Path="src/BipinPaul.DotNet.CodeStyle.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BipinPaul.DotNet.CodeStyle.RegressionTests/BipinPaul.DotNet.CodeStyle.RegressionTests.csproj" />
+  </Folder>
   <Project Path="build/_build.csproj" />
 </Solution>

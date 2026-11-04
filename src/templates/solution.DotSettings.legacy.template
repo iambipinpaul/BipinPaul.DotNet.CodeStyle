@@ -1,0 +1,142 @@
+<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:String x:Key="/Default/CodeStyle/CSharpFileLayoutPatterns/Pattern/@EntryValue">&lt;Patterns xmlns=&quot;urn:schemas-jetbrains-com:member-reordering-patterns&quot;&gt;
+  &lt;!-- Interfaces / enums / delegates: never reorder their members --&gt;
+  &lt;TypePattern DisplayName=&quot;Non-reorderable types&quot;&gt;
+    &lt;TypePattern.Match&gt;
+      &lt;Or&gt;
+        &lt;Kind Is=&quot;Interface&quot; /&gt;
+        &lt;Kind Is=&quot;Enum&quot; /&gt;
+        &lt;Kind Is=&quot;Delegate&quot; /&gt;
+      &lt;/Or&gt;
+    &lt;/TypePattern.Match&gt;
+  &lt;/TypePattern&gt;
+
+  &lt;!-- Classes / structs: StyleCop SA1201 (kind), SA1202 (access), SA1203
+       (constants first). Each kind is one entry sorted access-primary
+       (public -&gt; private), which is StyleCop&apos;s primary ordering key.
+       SA1204 (static-before-instance WITHIN an access group) is left as a
+       suggestion: ReSharper&apos;s reorderer only sorts instance-first, so we don&apos;t
+       hard-enforce static-first here. --&gt;
+  &lt;TypePattern DisplayName=&quot;StyleCop ordering&quot;&gt;
+    &lt;TypePattern.Match&gt;
+      &lt;Or&gt;
+        &lt;Kind Is=&quot;Class&quot; /&gt;
+        &lt;Kind Is=&quot;Struct&quot; /&gt;
+      &lt;/Or&gt;
+    &lt;/TypePattern.Match&gt;
+
+    &lt;Entry DisplayName=&quot;Constants&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Constant&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Fields&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Field&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+        &lt;Readonly /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Constructors&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Constructor&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Destructor&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Destructor&quot; /&gt;
+      &lt;/Entry.Match&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Delegates&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Delegate&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Events&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Event&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Enums&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Enum&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Nested interfaces&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Interface&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Properties and indexers&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Or&gt;
+          &lt;Kind Is=&quot;Property&quot; /&gt;
+          &lt;Kind Is=&quot;Indexer&quot; /&gt;
+        &lt;/Or&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Methods&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Method&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Nested structs&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Struct&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+
+    &lt;Entry DisplayName=&quot;Nested classes&quot;&gt;
+      &lt;Entry.Match&gt;
+        &lt;Kind Is=&quot;Class&quot; /&gt;
+      &lt;/Entry.Match&gt;
+      &lt;Entry.SortBy&gt;
+        &lt;Access /&gt;
+      &lt;/Entry.SortBy&gt;
+    &lt;/Entry&gt;
+  &lt;/TypePattern&gt;
+&lt;/Patterns&gt;</s:String>
+	<s:String x:Key="/Default/CodeStyle/CodeCleanup/Profiles/=ReorderOnly/@EntryIndexedValue">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-16&quot;?&gt;
+&lt;Profile name=&quot;ReorderOnly&quot;&gt;
+  &lt;CSReorderTypeMembers&gt;True&lt;/CSReorderTypeMembers&gt;
+&lt;/Profile&gt;</s:String>
+</wpf:ResourceDictionary>

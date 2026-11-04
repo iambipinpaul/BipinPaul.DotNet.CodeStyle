@@ -1,7 +1,16 @@
 <Project>
+  <PropertyGroup>
+    <CodeStyleBuildOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">windows</CodeStyleBuildOS>
+    <CodeStyleBuildOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">macos</CodeStyleBuildOS>
+    <CodeStyleBuildOS Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux</CodeStyleBuildOS>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CodeStyleBuildOS)' != ''">
+    <BaseOutputPath>bin/$(CodeStyleBuildOS)/</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj/$(CodeStyleBuildOS)/</BaseIntermediateOutputPath>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(RUNNING_IN_CONTAINER)' == 'true'">
     <BaseOutputPath>/tmp/dotnet-build/$(MSBuildProjectName)/bin/</BaseOutputPath>
     <BaseIntermediateOutputPath>/tmp/dotnet-build/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
-    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>
