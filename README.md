@@ -111,10 +111,17 @@ are preserved.
 | `--exclude <glob>` | exclude paths (repeatable; merged with `.csharp-style.json`) |
 | `--solution <f>` | force a specific `.sln`/`.slnx` |
 
+Unknown arguments, missing option values, and options for another command exit
+with code 2 before files are changed or child tools are started. For example,
+`csharp-style --version` is unsupported and reports a usage error. Use `--help`
+or `-h` for usage information.
+
 ### Agents vs. humans
 
-The scaffolded `AGENTS.md` tells agents to run `csharp-style run` after their
-edits, before verification. Humans and agents use the same complete pipeline.
+The scaffolded `AGENTS.md` tells agents to follow repository instructions and
+reuse existing authorization for formatting, builds, and tests. When permitted,
+agents run `csharp-style run` after edits, before verification. Humans and agents
+use the same complete pipeline.
 Use `--no-reorder` only when deliberately skipping member ordering; it applies
 code fixes and whitespace without preparing or invoking ReSharper.
 
