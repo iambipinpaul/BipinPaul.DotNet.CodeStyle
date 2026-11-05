@@ -136,6 +136,33 @@ exits zero. Diagnostics without an automatic fix remain a manual-review summary.
 - Reads excludes from `.csharp-style.json` so per-repo quirks (e.g. an isolated
   Fallout `build/` project) stay out of the pipeline.
 
+## Razor import cleanup
+
+The same command also selects changed `.razor` files, including `_Imports.razor`.
+Changed, staged and untracked files follow the existing solution and exclusion
+rules; `--base` selects tracked changes against that reference. `--all` also
+cleans Razor files within solution project directories, skipping generated
+`bin/` and `obj/` directories and directory links. `--list` lists the selected
+C# and Razor files without changing anything.
+
+A built-in pass cleans contiguous blocks of standalone header `@using`
+directives. It puts `System` namespaces first, sorts ordinally within namespace,
+static and simple alias groups, and removes optional trailing semicolons.
+It retains every imported namespace, including duplicates, and preserves file
+encoding, line endings, comments and content outside the import directives.
+This narrow pass uses those fixed conventions; it does not interpret custom
+Razor EditorConfig ordering settings.
+
+Blank lines, comments and other supported single-line header directives separate
+import blocks. Scanning stops at markup, C# code or unsupported syntax, including
+multiline directives, complex aliases and imports with attached comments.
+Imports beyond that boundary are left unchanged. This is import cleanup rather
+than general Razor markup or embedded-C# formatting.
+
+Razor-only changed-file runs need no ReSharper manifest or settings. Mixed runs
+finish the existing C# pipeline first, then clean the selected Razor files.
+A failed C# stage leaves Razor files unchanged.
+
 ## Member layout and limits
 
 The default layout uses explicit StyleCop access ordering, combines constants
