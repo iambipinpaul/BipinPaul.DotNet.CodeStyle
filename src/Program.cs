@@ -28,6 +28,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using BipinPaul.DotNet.CodeStyle;
 
 bool hasExplicitCommand = args.Length > 0 && !args[0].StartsWith('-');
 string command = hasExplicitCommand ? args[0] : "run";
@@ -157,7 +158,15 @@ int Run(string repoRoot, string? sln, string? @ref, bool whole, bool list, bool 
     string settingsFile = solution + ".DotSettings";
     List<string> excludes = LoadExcludes(repoRoot, excludesCli);
 
-    List<string> files = [];
+    HashSet<string> projectDirs = ProjectDirs(repoRoot, solution);
+    List<string> files = [.. (whole ? SolutionSourceFiles(repoRoot, projectDirs) : ChangedSourceFiles(@ref))
+        .Where(File.Exists)
+        .Where(f => InAnyProjectDir(f, projectDirs))
+        .Where(f => !IsExcluded(f, excludes))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)];
+    List<string> csharpFiles = [.. files.Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))];
+    List<string> razorFiles = [.. files.Where(f => f.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))];
     if (whole)
     {
         Console.WriteLine($"Mode: ALL files in {solution}"
@@ -165,84 +174,89 @@ int Run(string repoRoot, string? sln, string? @ref, bool whole, bool list, bool 
     }
     else
     {
-        HashSet<string> projectDirs = ProjectDirs(repoRoot, solution);
-        files = ChangedCsFiles(@ref)
-            .Where(File.Exists)
-            .Where(f => InAnyProjectDir(f, projectDirs))
-            .Where(f => !IsExcluded(f, excludes))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
         if (files.Count == 0)
         {
-            Console.WriteLine("No changed solution .cs files to format.");
+            Console.WriteLine("No changed solution .cs or .razor files to format.");
             return 0;
         }
-        Console.WriteLine($"{files.Count} changed .cs file(s):");
+        Console.WriteLine($"{files.Count} changed source file(s):");
         files.ForEach(f => Console.WriteLine($"  {f}"));
     }
 
     if (list)
+    {
+        if (whole) files.ForEach(f => Console.WriteLine($"  {f}"));
         return 0;
+    }
 
-    // Validate prerequisites before any code fix can change source files.
-    if (!skipReorder)
+    string manualSummary = "";
+    if (whole || csharpFiles.Count > 0)
     {
-        if (!File.Exists(Path.Combine(repoRoot, settingsFile)))
+        // Validate prerequisites before any code fix can change source files.
+        if (!skipReorder)
         {
-            Console.Error.WriteLine($"Missing {settingsFile}. Run `csharp-style init` and review the generated layout first.");
-            return 1;
+            if (!File.Exists(Path.Combine(repoRoot, settingsFile)))
+            {
+                Console.Error.WriteLine($"Missing {settingsFile}. Run `csharp-style init` and review the generated layout first.");
+                return 1;
+            }
+            int toolExit = EnsureReSharperTool(repoRoot);
+            if (toolExit != 0)
+            {
+                Console.Error.WriteLine($"ReSharper setup failed ({toolExit}); source files have not been changed.");
+                return toolExit;
+            }
         }
-        int toolExit = EnsureReSharperTool(repoRoot);
-        if (toolExit != 0)
+
+        // Code fixes may introduce members. They must run before final ordering.
+        Console.WriteLine("[1/3] Applying dotnet format code fixes (--severity info)...");
+        List<string> fa = ["format", solution, "--severity", "info"];
+        AddFormatScope(fa);
+
+        int formatExit = RunDotnetFormat([.. fa], out manualSummary);
+        if (formatExit != 0)
         {
-            Console.Error.WriteLine($"ReSharper setup failed ({toolExit}); source files have not been changed.");
-            return toolExit;
+            Console.Error.WriteLine($"Code fix pass failed ({formatExit}); review its output and any partial changes.");
+            return formatExit;
+        }
+
+        if (!skipReorder)
+        {
+            Console.WriteLine("[2/3] Reordering members (cleanupcode ReorderOnly)...");
+            List<string> reorderArguments = ["tool", "run", "jb", "--", "cleanupcode", solution,
+                "--profile=ReorderOnly", $"--settings={settingsFile}", "--no-build", "--no-updates"];
+            if (whole)
+            {
+                if (excludes.Count > 0) reorderArguments.Add($"--exclude={string.Join(';', excludes)}");
+            }
+            else
+            {
+                reorderArguments.Add($"--include={string.Join(';', csharpFiles)}");
+            }
+            int reorderExit = RunInherit("dotnet", [.. reorderArguments]);
+            if (reorderExit != 0)
+            {
+                Console.Error.WriteLine($"Member ordering failed ({reorderExit}).");
+                return reorderExit;
+            }
+        }
+
+        Console.WriteLine("[3/3] Formatting whitespace...");
+        List<string> whitespaceArguments = ["format", "whitespace", solution, "--no-restore"];
+        AddFormatScope(whitespaceArguments);
+        int whitespaceExit = RunInherit("dotnet", [.. whitespaceArguments]);
+        if (whitespaceExit != 0)
+        {
+            Console.Error.WriteLine($"Whitespace formatting failed ({whitespaceExit}).");
+            return whitespaceExit;
         }
     }
 
-    // Code fixes may introduce members. They must run before final ordering.
-    Console.WriteLine("[1/3] Applying dotnet format code fixes (--severity info)...");
-    List<string> fa = ["format", solution, "--severity", "info"];
-    AddFormatScope(fa);
-
-    int formatExit = RunDotnetFormat([.. fa], out string manualSummary);
-    if (formatExit != 0)
+    if (razorFiles.Count > 0)
     {
-        Console.Error.WriteLine($"Code fix pass failed ({formatExit}); review its output and any partial changes.");
-        return formatExit;
-    }
-
-    if (!skipReorder)
-    {
-        Console.WriteLine("[2/3] Reordering members (cleanupcode ReorderOnly)...");
-        List<string> reorderArguments = ["tool", "run", "jb", "--", "cleanupcode", solution,
-            "--profile=ReorderOnly", $"--settings={settingsFile}", "--no-build", "--no-updates"];
-        if (whole)
-        {
-            if (excludes.Count > 0) reorderArguments.Add($"--exclude={string.Join(';', excludes)}");
-        }
-        else
-        {
-            reorderArguments.Add($"--include={string.Join(';', files)}");
-        }
-        int reorderExit = RunInherit("dotnet", [.. reorderArguments]);
-        if (reorderExit != 0)
-        {
-            Console.Error.WriteLine($"Member ordering failed ({reorderExit}).");
-            return reorderExit;
-        }
-    }
-
-    Console.WriteLine("[3/3] Formatting whitespace...");
-    List<string> whitespaceArguments = ["format", "whitespace", solution, "--no-restore"];
-    AddFormatScope(whitespaceArguments);
-    int whitespaceExit = RunInherit("dotnet", [.. whitespaceArguments]);
-    if (whitespaceExit != 0)
-    {
-        Console.Error.WriteLine($"Whitespace formatting failed ({whitespaceExit}).");
-        return whitespaceExit;
+        Console.WriteLine($"[Razor] Cleaning imports in {razorFiles.Count} file(s)...");
+        foreach (string file in razorFiles)
+            RazorImports.Format(file);
     }
 
     Console.WriteLine("Done.");
@@ -259,7 +273,7 @@ int Run(string repoRoot, string? sln, string? @ref, bool whole, bool list, bool 
         else
         {
             arguments.Add("--include");
-            arguments.AddRange(files);
+            arguments.AddRange(csharpFiles);
         }
     }
 }
@@ -303,14 +317,42 @@ bool InAnyProjectDir(string file, HashSet<string> dirs)
     return dirs.Count == 0 || dirs.Any(d => f.StartsWith(d, StringComparison.OrdinalIgnoreCase));
 }
 
-IEnumerable<string> ChangedCsFiles(string? @ref)
+IEnumerable<string> ChangedSourceFiles(string? @ref)
 {
     if (@ref is not null)
-        return Git("diff", "--name-only", "--diff-filter=ACMR", @ref, "--", "*.cs");
+        return Git("diff", "--name-only", "--diff-filter=ACMR", @ref, "--", "*.cs", "*.razor");
 
-    return Git("diff", "--name-only", "--cached", "--diff-filter=ACMR", "--", "*.cs")
-        .Concat(Git("diff", "--name-only", "--diff-filter=ACMR", "--", "*.cs"))
-        .Concat(Git("ls-files", "--others", "--exclude-standard", "--", "*.cs"));
+    return Git("diff", "--name-only", "--cached", "--diff-filter=ACMR", "--", "*.cs", "*.razor")
+        .Concat(Git("diff", "--name-only", "--diff-filter=ACMR", "--", "*.cs", "*.razor"))
+        .Concat(Git("ls-files", "--others", "--exclude-standard", "--", "*.cs", "*.razor"));
+}
+
+// Enumerate source files without walking generated output or directory links.
+IEnumerable<string> SolutionSourceFiles(string repoRoot, HashSet<string> projectDirs)
+{
+    HashSet<string> visited = new(StringComparer.OrdinalIgnoreCase);
+    Stack<string> pending = new(projectDirs.Count > 0 ? projectDirs : ["."]);
+    while (pending.TryPop(out string? directory))
+    {
+        if (!visited.Add(Path.GetFullPath(directory))) continue;
+        foreach (string file in Directory.EnumerateFiles(directory))
+        {
+            string extension = Path.GetExtension(file);
+            if (extension.Equals(".cs", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".razor", StringComparison.OrdinalIgnoreCase))
+                yield return Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
+        }
+        foreach (string child in Directory.EnumerateDirectories(directory))
+        {
+            string name = Path.GetFileName(child);
+            if (name.Equals("bin", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("obj", StringComparison.OrdinalIgnoreCase)
+                || name.Equals(".git", StringComparison.OrdinalIgnoreCase)
+                || (File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0)
+                continue;
+            pending.Push(child);
+        }
+    }
 }
 
 // ============================================================================
@@ -700,12 +742,16 @@ int UsageError(string message) { Console.Error.WriteLine($"{message} Try --help.
 
 void PrintHelp() => Console.WriteLine(
 """
-csharp-style — C# cleanup (code fixes, member ordering, whitespace) + scaffolder
+csharp-style — C# cleanup + Razor import cleanup + scaffolder
 
 USAGE
   csharp-style init [--solution <f>] [--force]
   csharp-style run  [--all] [--base <ref>] [--list] [--no-reorder]
                     [--exclude <glob>]... [--solution <f>]
+
+  Changed .cs files use the C# pipeline; changed .razor files receive safe
+  header import cleanup (System first, ordinal sorting, optional semicolons removed).
+  Razor-only changes need no ReSharper setup. Comments and markup are preserved.
 
   (run is the default command, so `csharp-style --all` works too.)
   Unknown arguments, missing values, and options for another command exit 2

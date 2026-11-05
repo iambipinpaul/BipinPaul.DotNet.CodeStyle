@@ -79,8 +79,12 @@ internal static class RegressionCases
             ("generated EditorConfig severity values are valid exact tokens", SeverityTokensAsync)
         ];
         cases.AddRange(DotSettingsCases.Cases);
+        cases.AddRange(RazorCases.Cases);
         if (realTools)
+        {
             cases.Add(("real pinned cleanup preserves runtime behavior and is idempotent", IntegrationCases.OrderingAsync));
+            cases.Add(("real Razor components compile before and after idempotent cleanup", IntegrationCases.RazorAsync));
+        }
 
         int failures = 0;
         foreach ((string name, Func<HarnessEnvironment, Task> run) in cases)
